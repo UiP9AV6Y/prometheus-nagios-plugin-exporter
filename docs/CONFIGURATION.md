@@ -173,33 +173,37 @@ See [`strings.ToUpper`](https://pkg.go.dev/strings#ToUpper)
 
 ### `compact`
 
-See [`sprig.mustCompact`](https://masterminds.github.io/sprig/mustCompact.html)
+See [`sprig.mustCompact`](https://masterminds.github.io/sprig/lists.html#mustCompact)
 
 ### `default`
 
-See [`sprig.default`](https://masterminds.github.io/sprig/default.html)
+See [`sprig.default`](https://masterminds.github.io/sprig/defaults.html#default)
 
 ### `first`
 
-See [`sprig.mustFirst`](https://masterminds.github.io/sprig/mustFirst.html)
+See [`sprig.mustFirst`](https://masterminds.github.io/sprig/lists.html#mustFirst)
 
 ### `initial`
 
-See [`sprig.mustInitial`](https://masterminds.github.io/sprig/mustInitial.html)
+See [`sprig.mustInitial`](https://masterminds.github.io/sprig/lists.html#mustInitial)
 
 ### `join`
 
-See [`sprig.join`](https://masterminds.github.io/sprig/join.html)
+See [`sprig.join`](https://masterminds.github.io/sprig/string_slice.html#join)
+
+### `last`
+
+See [`sprig.mustLast`](https://masterminds.github.io/sprig/lists.html#mustLast)
 
 ### `rest`
 
-See [`sprig.mustLast`](https://masterminds.github.io/sprig/mustLast.html)
+See [`sprig.mustRest`](https://masterminds.github.io/sprig/lists.html#mustRest)
 
 ### `strval`
 
-See [`sprig.toString`](https://masterminds.github.io/sprig/toString.html)
+See [`sprig.toString`](https://masterminds.github.io/sprig/conversion.html#toString)
 
 ### `uniq`
 
-See [`sprig.mustUniq`](https://masterminds.github.io/sprig/mustUniq.html)
+See [`sprig.mustUniq`](https://masterminds.github.io/sprig/lists.html#mustUniq)
 

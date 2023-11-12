@@ -29,7 +29,8 @@ func init() {
 		"first":     s["mustFirst"],
 		"initial":   s["mustInitial"],
 		"join":      s["join"],
-		"rest":      s["mustLast"],
+		"last":      s["mustLast"],
+		"rest":      s["mustRest"],
 		"strval":    s["toString"],
 		"uniq":      s["mustUniq"],
 	}

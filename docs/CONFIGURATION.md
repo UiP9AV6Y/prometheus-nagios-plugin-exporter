@@ -41,11 +41,11 @@ modules:
     [ <string>: <plugin_argument> ... ]
 
   # Variables to expose to the argument builder
-	variables:
+  variables:
     [ <string>: <string> ... ]
 
-	# Environment variables to expose to the command and argument builder
-	environment:
+  # Environment variables to expose to the command and argument builder
+  environment:
     [ <string>: <string> ... ]
 
 ```

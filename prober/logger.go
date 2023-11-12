@@ -14,15 +14,15 @@ type scrapeLogger struct {
 	logLevel     level.Option
 }
 
-func newScrapeLogger(logger log.Logger, module string, target string, logLevel level.Option) *scrapeLogger {
-	logger = log.With(logger, "module", module, "target", target)
+func newScrapeLogger(logger log.Logger, module string, logLevel level.Option) *scrapeLogger {
+	logger = log.With(logger, "module", module)
 	sl := &scrapeLogger{
 		next:     logger,
 		buffer:   bytes.Buffer{},
 		logLevel: logLevel,
 	}
 	bl := log.NewLogfmtLogger(&sl.buffer)
-	sl.bufferLogger = log.With(bl, "ts", log.DefaultTimestampUTC, "caller", log.Caller(6), "module", module, "target", target)
+	sl.bufferLogger = log.With(bl, "ts", log.DefaultTimestampUTC, "caller", log.Caller(6), "module", module)
 	return sl
 }
 

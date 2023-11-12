@@ -1,0 +1,17 @@
+---
+modules:
+  dummy:
+    command: /usr/lib/nagios/plugins/check_dummy
+    arguments:
+      STATE:
+        order: 1
+        skip_key: true
+        value: "{{ .Vars.dummy_state | first }}"
+      TEXT:
+        order: 2
+        skip_key: true
+        value: '{{ .Vars.dummy_text | join " " }}'
+    variables:
+      dummy_state: "0"
+      dummy_text: ""
+  

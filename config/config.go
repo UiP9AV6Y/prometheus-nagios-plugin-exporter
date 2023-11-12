@@ -8,22 +8,30 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// Config defines the configuration root node
 type Config struct {
 	Modules map[string]Module `yaml:"modules,omitempty"`
 }
 
+// YAML renders the instance as YAML representation
+func (c *Config) MarshalYAML() ([]byte, error) {
+	type rawConfig Config
+	return yaml.Marshal((*rawConfig)(c))
+}
+
+// SafeConfig is thread-safe Config instance provider
 type SafeConfig struct {
 	sync.RWMutex
-	C                   *Config
+	config              *Config
 	configReloadSuccess prometheus.Gauge
 	configReloadSeconds prometheus.Gauge
 }
 
+// NewSafeConfig creates a new SafeConfig instance
 func NewSafeConfig(namespace string, reg prometheus.Registerer) *SafeConfig {
 	configReloadSuccess := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -37,7 +45,7 @@ func NewSafeConfig(namespace string, reg prometheus.Registerer) *SafeConfig {
 	})
 	config := &Config{}
 	result := &SafeConfig{
-		C:                   config,
+		config:              config,
 		configReloadSuccess: configReloadSuccess,
 		configReloadSeconds: configReloadSeconds,
 	}
@@ -45,6 +53,8 @@ func NewSafeConfig(namespace string, reg prometheus.Registerer) *SafeConfig {
 	return result
 }
 
+// ReloadConfig reads the configuration from the given path and updates its
+// internal config instance with the parsed result
 func (sc *SafeConfig) ReloadConfig(confFile string, logger log.Logger) (err error) {
 	var c = &Config{}
 	defer func() {
@@ -56,27 +66,16 @@ func (sc *SafeConfig) ReloadConfig(confFile string, logger log.Logger) (err erro
 		}
 	}()
 
-	yamlReader, err := os.Open(confFile)
+	r, err := os.Open(confFile)
 	if err != nil {
 		return fmt.Errorf("error reading config file: %s", err)
 	}
-	defer yamlReader.Close()
-	decoder := yaml.NewDecoder(yamlReader)
+	defer r.Close()
+	decoder := yaml.NewDecoder(r)
 	decoder.KnownFields(true)
 
 	if err = decoder.Decode(c); err != nil {
 		return fmt.Errorf("error parsing config file: %s", err)
-	}
-
-	for name, module := range c.Modules {
-		if module.HTTP.NoFollowRedirects != nil {
-			// Hide the old flag from the /config page.
-			module.HTTP.NoFollowRedirects = nil
-			c.Modules[name] = module
-			if logger != nil {
-				level.Warn(logger).Log("msg", "no_follow_redirects is deprecated and will be removed in the next release. It is replaced by follow_redirects.", "module", name)
-			}
-		}
 	}
 
 	sc.UpdateConfig(c)
@@ -84,8 +83,19 @@ func (sc *SafeConfig) ReloadConfig(confFile string, logger log.Logger) (err erro
 	return nil
 }
 
+// UpdateConfig replaces the internal config instance with the given one (thread-safe)
 func (sc *SafeConfig) UpdateConfig(c *Config) {
 	sc.Lock()
-	sc.C = c
+	sc.config = c
 	sc.Unlock()
+}
+
+// ProvideConfig is a thread-safe visitor implementation, to gain access to the
+// internal config instance.
+func (sc *SafeConfig) ProvideConfig(visitor func(*Config)) {
+	sc.Lock()
+	conf := sc.config
+	sc.Unlock()
+
+	visitor(conf)
 }

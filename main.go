@@ -22,6 +22,7 @@ import (
 
 	"github.com/UiP9AV6Y/prometheus-nagios-plugin-exporter/config"
 	"github.com/UiP9AV6Y/prometheus-nagios-plugin-exporter/prober"
+	"github.com/UiP9AV6Y/prometheus-nagios-plugin-exporter/template"
 )
 
 const (
@@ -32,21 +33,27 @@ const (
 	healthEndpoint    = "/-/healthy"
 	reloadEndpoint    = "/-/reload"
 	telemetryEndpoint = "/metrics"
+	configEndpoint    = "/config"
 	probeEndpoint     = "/probe"
 )
 
 var (
-	sc = config.NewSafeConfig(prometheus.DefaultRegisterer)
+	sc = config.NewSafeConfig(ident, prometheus.DefaultRegisterer)
+	tc = template.NewFuncMapTemplateCache(template.Functions)
 
 	configFile  = kingpin.Flag("config.file", "Nagios Plugin exporter configuration file.").Default(ident + ".yml").String()
 	configCheck = kingpin.Flag("config.check", "If true validate the config file and then exit.").Default().Bool()
+
+	webDebug      = kingpin.Flag("web.debug", "Enable the debugging feature for the metrics endpoint").Default().Bool()
+	timeoutOffset = kingpin.Flag("timeout-offset", "Offset to subtract from timeout in seconds.").Default("0.5").Float64()
 
 	logLevelProber = kingpin.Flag("log.prober", "Log level from probe requests. One of: [debug, info, warn, error, none]").Default("none").String()
 	toolkitFlags   = webflag.AddFlags(kingpin.CommandLine, ":9665")
 
 	moduleUnknownCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: ident + "_module_unknown_total",
-		Help: "Count of unknown modules requested by probes",
+		Namespace: ident,
+		Name:      "module_unknown_total",
+		Help:      "Count of unknown modules requested by probes",
 	})
 )
 
@@ -80,14 +87,16 @@ func watchConfig(reloadCh chan chan error, logger log.Logger) {
 			case <-hup:
 				if err := sc.ReloadConfig(*configFile, logger); err != nil {
 					level.Error(logger).Log("msg", "Error reloading config", "err", err)
-					continue
+				} else {
+					tc.Flush()
+					level.Info(logger).Log("msg", "Reloaded config file")
 				}
-				level.Info(logger).Log("msg", "Reloaded config file")
 			case rc := <-reloadCh:
 				if err := sc.ReloadConfig(*configFile, logger); err != nil {
 					level.Error(logger).Log("msg", "Error reloading config", "err", err)
 					rc <- err
 				} else {
+					tc.Flush()
 					level.Info(logger).Log("msg", "Reloaded config file")
 					rc <- nil
 				}
@@ -96,7 +105,7 @@ func watchConfig(reloadCh chan chan error, logger log.Logger) {
 	}()
 }
 
-func rootHandler() http.Handler {
+func rootHandler() (http.Handler, error) {
 	landingConfig := web.LandingConfig{
 		Name:        title,
 		Description: "Prometheus Exporter for Nagios Plugins",
@@ -138,12 +147,46 @@ func healthHandlerFunc() http.HandlerFunc {
 	}
 }
 
-func probeHandlerFunc(logger log.Logger) http.HandlerFunc {
+func probeHandlerFunc(logger log.Logger, logLevel level.Option) http.HandlerFunc {
+	handler := prober.NewHandler(ident, tc, logger, logLevel, *webDebug, *timeoutOffset)
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		sc.Lock()
-		conf := sc.C
-		sc.Unlock()
-		prober.Handler(w, r, conf, logger, moduleUnknownCounter, logLevelProber)
+		sc.ProvideConfig(func(conf *config.Config) {
+			moduleName := r.URL.Query().Get("module")
+			if moduleName == "" {
+				http.Error(w, "Module parameter is missing", http.StatusBadRequest)
+				return
+			}
+
+			module, ok := conf.Modules[moduleName]
+			if !ok {
+				http.Error(w, fmt.Sprintf("Unknown module %q", moduleName), http.StatusBadRequest)
+				level.Debug(logger).Log("msg", "Unknown module", "module", moduleName)
+				moduleUnknownCounter.Add(1)
+
+				return
+			}
+
+			ctx := config.NewContext(r.Context(), moduleName, &module)
+			r = r.WithContext(ctx)
+
+			handler.Handle(w, r)
+		})
+	}
+}
+
+func configHandlerFunc(logger log.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sc.ProvideConfig(func(conf *config.Config) {
+			c, err := conf.MarshalYAML()
+			if err != nil {
+				level.Warn(logger).Log("msg", "Error marshalling configuration", "err", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write(c)
+		})
 	}
 }
 
@@ -220,11 +263,12 @@ func run() int {
 
 	http.Handle(telemetryEndpoint, promhttp.Handler())
 	http.HandleFunc(reloadEndpoint, reloadHandlerFunc(reloadCh))
+	http.HandleFunc(configEndpoint, configHandlerFunc(logger))
 	http.HandleFunc(healthEndpoint, healthHandlerFunc())
-	http.HandleFunc(probeEndpoint, probeHandlerFunc())
+	http.HandleFunc(probeEndpoint, probeHandlerFunc(logger, logLevelProber))
 
 	srvc := make(chan struct{})
 	runServer(srvc, logger)
-	stopServer(srvc, logger)
 
+	return stopServer(srvc, logger)
 }

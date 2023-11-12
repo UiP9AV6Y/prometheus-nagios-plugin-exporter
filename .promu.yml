@@ -16,4 +16,3 @@ tarball:
     files:
         - nagios_plugin.yml
         - LICENSE
-        - NOTICE

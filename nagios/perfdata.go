@@ -18,8 +18,8 @@ type PerfData struct {
 	value *PerfValue
 	warn  *Threshold
 	crit  *Threshold
-	min   *int
-	max   *int
+	min   *float64
+	max   *float64
 }
 
 // NewUndefinedPerfData creates a new instance with the semantic of the value being undefined
@@ -45,12 +45,12 @@ func NewThresholdPerfData(label string, value *PerfValue, warn, crit *Threshold)
 }
 
 // NewScopedPerfData creates a new instance with the given performance metric and limits
-func NewScopedPerfData(label string, value *PerfValue, min, max int) *PerfData {
+func NewScopedPerfData(label string, value *PerfValue, min, max float64) *PerfData {
 	return NewPerfData(label, value, nil, nil, min, max)
 }
 
 // NewPerfData creates a new instance with the given performance metric, thresholds, and limits
-func NewPerfData(label string, value *PerfValue, warn, crit *Threshold, min, max int) *PerfData {
+func NewPerfData(label string, value *PerfValue, warn, crit *Threshold, min, max float64) *PerfData {
 	result := &PerfData{
 		label: label,
 		value: value,
@@ -139,7 +139,7 @@ func parsePerfDataValues(result *PerfData, s string) (err error) {
 	}
 
 	if parts > 3 && fragments[3] != "" {
-		min, err := strconv.Atoi(fragments[3])
+		min, err := strconv.ParseFloat(fragments[3], 64)
 		if err != nil {
 			return err
 		}
@@ -148,7 +148,7 @@ func parsePerfDataValues(result *PerfData, s string) (err error) {
 	}
 
 	if parts > 4 && fragments[4] != "" {
-		max, err := strconv.Atoi(fragments[4])
+		max, err := strconv.ParseFloat(fragments[4], 64)
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (d *PerfData) QuotedLabel() string {
 }
 
 // Min returns the lower peformance data limit
-func (d *PerfData) Min() (result int) {
+func (d *PerfData) Min() (result float64) {
 	if d.min != nil {
 		result = *d.min
 	}
@@ -184,7 +184,7 @@ func (d *PerfData) Min() (result int) {
 }
 
 // Max returns the upper peformance data limit
-func (d *PerfData) Max() (result int) {
+func (d *PerfData) Max() (result float64) {
 	if d.max != nil {
 		if *d.max == 0 && d.value != nil && d.value.Unit == "%" {
 			result = 100
@@ -262,13 +262,13 @@ func (d *PerfData) String() string {
 	params[2] = d.Critical()
 
 	if d.min != nil {
-		params[3] = strconv.Itoa(*d.min)
+		params[3] = strconv.FormatFloat(*d.min, 'f', -1, 64)
 	} else if d.max != nil {
 		params[3] = ""
 	}
 
 	if d.max != nil {
-		params[4] = strconv.Itoa(*d.max)
+		params[4] = strconv.FormatFloat(*d.max, 'f', -1, 64)
 	}
 
 	for {
